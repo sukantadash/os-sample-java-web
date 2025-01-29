@@ -1,27 +1,29 @@
 # Stage 1: Build the WAR file
-FROM registry.access.redhat.com/ubi8/openjdk-11 AS builder
+FROM registry.access.redhat.com/ubi8/openjdk-17:1.15-1.1682053058 AS builder
 
 WORKDIR /build
 
-# Install Maven
-RUN dnf install -y maven && dnf clean all
+# Optimize Maven build caching
+COPY pom.xml .
+RUN mvn dependency:go-offline
 
-# Clone the application repository
-RUN git clone https://github.com/openshiftdemos/os-sample-java-web.git /build
-
-# Build the application
+COPY src ./src
 RUN mvn package -DskipTests
 
-# Stage 2: Deploy the WAR file to JBoss Web Server 5.7
-FROM registry.redhat.io/jboss-webserver-5/jboss-webserver57-openjdk11-tomcat9-openshift-ubi8
+# Stage 2: Create final runtime container with JWS (Tomcat)
+FROM registry.redhat.io/jboss-webserver-5/webserver55-tomcat9-rhel8
 
-WORKDIR /opt/jws-5.7/
+WORKDIR /opt/jboss/webserver/
 
-# Copy the built WAR file into Tomcat's webapps directory
+# Security: Add a non-root user
+RUN groupadd -r appgroup && useradd -r -g appgroup appuser
+USER appuser
+
+# Copy built WAR file into Tomcat’s webapps directory
 COPY --from=builder /build/target/*.war ./webapps/app.war
 
-# Expose Tomcat's port
+# Expose the Tomcat port
 EXPOSE 8080
 
-# Run JWS (Tomcat)
+# Run JWS (Tomcat) with optimized settings
 CMD ["bin/catalina.sh", "run"]
