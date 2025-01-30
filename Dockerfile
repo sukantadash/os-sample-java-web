@@ -1,7 +1,10 @@
 # Stage 1: Build the WAR file
 FROM registry.access.redhat.com/ubi8/openjdk-17 AS builder
 
+USER root
+
 WORKDIR /build
+
 
 # Optimize Maven build caching
 COPY pom.xml .
@@ -11,9 +14,11 @@ COPY src ./src
 RUN mvn package -DskipTests
 
 # Stage 2: Create final runtime container with JWS (Tomcat)
-FROM registry.redhat.io/jboss-webserver-5/webserver55-tomcat9-rhel8
+FROM registry.redhat.io/jboss-webserver-5/jws58-openjdk17-openshift-rhel8
 
 WORKDIR /opt/jboss/webserver/
+
+USER root
 
 # Security: Add a non-root user
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser
